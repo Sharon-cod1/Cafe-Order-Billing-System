@@ -1,0 +1,29 @@
+{% extends 'orders/base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4>Staff Login</h4>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                        <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="pin" class="form-label">Enter 4-Digit PIN:</label>
+                            <input type="password" class="form-control" id="pin" name="pin" 
+                                   maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

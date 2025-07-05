@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOFI-SIP Bill - Order #{{ order.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #6f4e37;
+        }
+        .header p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .bill-details {
+            margin-bottom: 20px;
+        }
+        .bill-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .bill-items th, .bill-items td {
+            padding: 8px 0;
+            border-bottom: 1px dashed #ddd;
+            text-align: left;
+        }
+        .bill-items th {
+            border-bottom: 1px solid #333;
+        }
+        .total {
+            text-align: right;
+            font-weight: bold;
+            font-size: 18px;
+            margin-top: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
+        .payment-section {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+        #rzp-button {
+            background-color: #6f4e37;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            width: 100%;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #rzp-button:hover {
+            background-color: #5a3c2c;
+        }
+        #rzp-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #payment-error {
+            color: #dc3545;
+            margin-top: 10px;
+            text-align: center;
+            display: none;
+        }
+        @media print {
+            body {
+                max-width: 100%;
+            }
+            .no-print, .payment-section {
+                display: none;
+            }
+        }
+    </style>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>KOFI-SIP</h1>
+        <p>Cafe & Coffee Shop</p>
+        <p>Order #{{ order.id }}</p>
+    </div>
+    
+    <div class="bill-details">
+        <p><strong>Table:</strong> {{ order.table_number }}</p>
+        <p><strong>Date:</strong> {{ order.order_time|date:"d M Y H:i" }}</p>
+    </div>
+    
+    <table class="bill-items">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Price</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order.items.all %}
+                <tr>
+                    <td>{{ item.menu_item.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>₹{{ item.price }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="total">
+        Total: ₹{{ order.total_amount }}
+    </div>
+
+    <!-- Payment Section -->
+    <div class="payment-section">
+        {% if order.payment_status == 'paid' %}
+            <div class="alert alert-success" style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 4px; text-align: center;">
+                <i class="bi bi-check-circle-fill"></i> Payment Successful! (Transaction ID: {{ order.payment_id|default:"N/A" }})
+            </div>
+        {% else %}
+            <button id="rzp-button" class="no-print">
+                <i class="bi bi-credit-card"></i> Pay ₹{{ order.total_amount }} via UPI/Card
+            </button>
+            <div id="payment-error" class="no-print"></div>
+        {% endif %}
+    </div>
+    
+    <div class="footer">
+        <p>Thank you for visiting KOFI-SIP!</p>
+        <p>Please come again</p>
+    </div>
+    
+    <div class="no-print text-center mt-4">
+        <button onclick="window.print()" class="btn btn-primary">Print Bill</button>
+        <button onclick="window.close()" class="btn btn-secondary">Close</button>
+    </div>
+    
+    <!-- Razorpay Integration -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+    // // Auto-print for non-payment flow
+    // window.onload = function() {
+    //     {% if order.payment_status != 'paid' %}
+    //         setTimeout(function() {
+    //             window.print();
+    //         }, 500);
+    //     {% endif %}
+    // };
+
+    // Payment handling
+    document.getElementById('rzp-button')?.addEventListener('click', async function() {
+        const button = this;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Processing...';
+        
+        try {
+            // 1. Create Payment Order
+            const response = await fetch(`/create-payment/{{ order.id }}/`);
+            if (!response.ok) throw new Error('Network error');
+            const data = await response.json();
+            
+            // 2. Configure Razorpay Options
+            const options = {
+                key: "{{ RAZORPAY_KEY_ID }}",
+                amount: "{{ order.total_amount|floatformat:2 }}",
+                currency: "INR",
+                name: "KOFI-SIP Cafe",
+                description: "Bill #{{ order.id }}",
+                order_id: data.id,
+                theme: { color: "#6f4e37" },
+                modal: {
+                    ondismiss: function() {
+                        button.disabled = false;
+                        button.innerHTML = '<i class="bi bi-credit-card"></i> Retry Payment';
+                    }
+                },
+                handler: async function(response) {
+                    // 3. Verify Payment
+                    const verification = await fetch('/verify-payment/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: new URLSearchParams({
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_signature: response.razorpay_signature,
+                            order_id: '{{ order.id }}'
+                        })
+                    });
+                    
+                    const result = await verification.json();
+                    if (result.status === 'success') {
+                        window.location.reload();
+                    } else {
+                        showError('Payment verification failed');
+                    }
+                }
+            };
+            
+            // 4. Open Payment Modal
+            const rzp = new Razorpay(options);
+            rzp.open();
+            
+        } catch (error) {
+            showError('Payment initialization failed: ' + error.message);
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-credit-card"></i> Try Again';
+        }
+    });
+
+    function showError(message) {
+        const errorEl = document.getElementById('payment-error');
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+        setTimeout(() => {
+            errorEl.style.display = 'none';
+        }, 5000);
+    }
+    </script>
+</body>
+</html>

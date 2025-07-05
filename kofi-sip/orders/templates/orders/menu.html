@@ -1,0 +1,160 @@
+{% extends 'orders/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>KOFI-SIP Menu</h1>
+        
+        {% for category, items in categories.items %}
+            {% if items %}
+                <h3 class="category-title">{{ items.0.get_category_display }}</h3>
+                <div class="row">
+                    {% for item in items %}
+                        <div class="col-md-6">
+                            <div class="menu-item">
+                                <div class="d-flex justify-content-between">
+                                    <h5>{{ item.name }}</h5>
+                                    <span class="text-muted">₹{{ item.price }}</span>
+                                </div>
+                                <button class="btn btn-sm btn-outline-secondary add-to-order" 
+                                        data-item-id="{{ item.id }}">
+                                    Add to Order
+                                </button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Current Order</h5>
+            </div>
+            <div class="card-body">
+                <form id="order-form">
+                    <div class="mb-3">
+                        <label for="table-number" class="form-label">Table Number</label>
+                        <input type="number" class="form-control" id="table-number" required min="1">
+                    </div>
+                    <div id="order-items">
+                        <!-- Order items will be added here -->
+                    </div>
+                    <div class="d-flex justify-content-between mt-3">
+                        <h5>Total: ₹<span id="order-total">0.00</span></h5>
+                        <button type="submit" class="btn btn-primary">Place Order</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const orderItems = {};
+        const orderItemsContainer = document.getElementById('order-items');
+        const orderTotalElement = document.getElementById('order-total');
+        
+        // Add to order button click handler
+        document.querySelectorAll('.add-to-order').forEach(button => {
+            button.addEventListener('click', function() {
+                const itemId = this.getAttribute('data-item-id');
+                const itemName = this.parentNode.querySelector('h5').textContent;
+                const itemPrice = parseFloat(this.parentNode.querySelector('span').textContent.replace('₹', ''));
+                
+                if (orderItems[itemId]) {
+                    orderItems[itemId].quantity += 1;
+                } else {
+                    orderItems[itemId] = {
+                        name: itemName,
+                        price: itemPrice,
+                        quantity: 1
+                    };
+                }
+                
+                updateOrderDisplay();
+            });
+        });
+        
+        // Update order display
+        function updateOrderDisplay() {
+            orderItemsContainer.innerHTML = '';
+            let total = 0;
+            
+            for (const [itemId, item] of Object.entries(orderItems)) {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'd-flex justify-content-between mb-2';
+                itemElement.innerHTML = `
+                    <div>
+                        ${item.name} 
+                        <span class="text-muted">x${item.quantity}</span>
+                    </div>
+                    <div>
+                        ₹${(item.price * item.quantity).toFixed(2)}
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2 remove-item" data-item-id="${itemId}">
+                            ×
+                        </button>
+                    </div>
+                `;
+                orderItemsContainer.appendChild(itemElement);
+                total += item.price * item.quantity;
+            }
+            
+            orderTotalElement.textContent = total.toFixed(2);
+            
+            // Add event listeners to remove buttons
+            document.querySelectorAll('.remove-item').forEach(button => {
+                button.addEventListener('click', function() {
+                    const itemId = this.getAttribute('data-item-id');
+                    if (orderItems[itemId].quantity > 1) {
+                        orderItems[itemId].quantity -= 1;
+                    } else {
+                        delete orderItems[itemId];
+                    }
+                    updateOrderDisplay();
+                });
+            });
+        }
+        
+        // Form submission
+        document.getElementById('order-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const tableNumber = document.getElementById('table-number').value;
+            const items = Object.keys(orderItems).map(itemId => ({
+                id: itemId,
+                quantity: orderItems[itemId].quantity
+            }));
+            
+            if (items.length === 0) {
+                alert('Please add items to your order');
+                return;
+            }
+            
+            fetch('{% url "create_order" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    table_number: tableNumber,
+                    items: items
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                window.location.href = `{% url 'order_success' 0 %}`.replace('0', data.order_id);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        });
+    });
+</script>
+{% endblock %}
