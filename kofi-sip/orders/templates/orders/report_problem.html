@@ -1,0 +1,15 @@
+{% extends 'orders/base.html' %}
+
+{% block content %}
+<div class="card p-4 mt-5">
+    <h2 class="mb-3 text-danger">Report a Problem</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="issue" class="form-label">Describe the problem:</label>
+            <textarea name="issue" id="issue" class="form-control" rows="5" placeholder="Something went wrong..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-danger">Submit</button>
+    </form>
+</div>
+{% endblock %}

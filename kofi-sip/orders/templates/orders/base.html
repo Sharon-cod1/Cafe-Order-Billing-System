@@ -46,8 +46,10 @@
         <div class="container">
             <a class="navbar-brand" href="#">KOFI-SIP</a>
             <div class="navbar-nav">
+                <a class="nav-link" href="{% url 'menu' %}">Menu</a>
                 <a class="nav-link" href="{% url 'daily_report' %}">Daily Report</a>
                 <a class="nav-link" href="{% url 'monthly_report' %}">Monthly Report</a>
+                <a class="nav-link text-danger" href="{% url 'report_issue' %}">Report Issue</a>
             </div>
         </div>
     </nav>

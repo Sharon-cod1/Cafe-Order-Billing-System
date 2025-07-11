@@ -7,6 +7,7 @@ from django.utils import timezone
 from .models import Staff,Shift
 import razorpay
 from django.conf import settings
+from django.contrib import messages
 
 def menu(request):
     categories = {
@@ -93,17 +94,6 @@ def staff_login(request):
             return render(request, 'orders/staff_login.html', {'error': 'Invalid PIN'})
     return render(request, 'orders/staff_login.html')
 
-@csrf_exempt
-def create_order(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        staff_id = request.session.get('staff_id')
-        
-        order = Order.objects.create(
-            table_number=data.get('table_number'),
-            staff_id=staff_id  # Assign logged-in staff
-        )
-
 def staff_logout(request):
     staff_id = request.session.get('staff_id')
     if staff_id:
@@ -142,3 +132,15 @@ def verify_payment(request):
             return JsonResponse({'status': 'success'})
         except:
             return JsonResponse({'status': 'failed'}, status=400)
+        
+def report_issue(request):
+    if request.method == 'POST':
+        issue = request.POST.get('issue')
+        if issue:
+            # You could save this to a model or email it
+            print(f"Reported Issue: {issue}")  # or save to DB/logs
+            messages.success(request, 'Problem reported successfully.')
+            return redirect('menu')
+        else:
+            messages.error(request, 'Please describe the issue.')
+    return render(request, 'orders/report_problem.html')
